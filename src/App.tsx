@@ -69,6 +69,23 @@ export default function App() {
     setStatus("done");
   };
 
+  const fetchWithRetry = async (url, options, retries = 3, delay = 2000) => {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      const res = await fetch(url, options);
+      if (res.ok) return res;
+      if (res.status === 429 && attempt < retries) {
+        const wait = delay * attempt;
+        setSearchLog((prev) => [...prev, `Cuota excedida, reintentando en ${wait/1000}s (intento ${attempt}/${retries})`]);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      const errText = await res.text().catch(() => "");
+      setSearchLog((prev) => [...prev, `Error ${res.status}: ${errText.slice(0, 200)}`]);
+      throw new Error(`API error ${res.status}`);
+    }
+    throw new Error("API error 429 - cuota agotada tras reintentos");
+  };
+
   const fetchTopic = async (topic, ctrl) => {
     const label = topic.label;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${API_KEY}`;
@@ -76,7 +93,7 @@ export default function App() {
     setTopicStatus((prev) => ({ ...prev, [topic.id]: "searching" }));
     setSearchLog((prev) => [...prev, `Buscando: ${label}`]);
 
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
       method: "POST",
       signal: ctrl.signal,
       headers: { "Content-Type": "application/json" },
@@ -92,15 +109,9 @@ export default function App() {
           },
         ],
         tools: [{ googleSearch: {} }],
-        generationConfig: { maxOutputTokens: 1200 },
+        generationConfig: { maxOutputTokens: 800 },
       }),
     });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      setSearchLog((prev) => [...prev, `Error ${res.status}: ${errText.slice(0, 200)}`]);
-      throw new Error(`API error ${res.status}`);
-    }
 
     const reader = res.body.getReader();
     const dec = new TextDecoder();
@@ -188,6 +199,9 @@ export default function App() {
         }
       }
       setProgress({ done: i + 1, total: topicList.length });
+      if (i < topicList.length - 1 && !ctrl.signal.aborted) {
+        await new Promise((r) => setTimeout(r, 1500));
+      }
     }
 
     setStatus("done");
