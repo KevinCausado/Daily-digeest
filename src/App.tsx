@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-const API_KEY = "AIzaSyC-JQp1DGwRfIBpGRI_Nrm6dvLQfeTw7jU";
+const API_KEY = "AQ.Ab8RN6KDe-v93aFVgFxYipFcu9is4zuMpCp_VjjcHiZoGkRMqw";
 
 const TOPICS = [
   { id: "trading", label: "Trading / Finanzas", emoji: "📈" },
