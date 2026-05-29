@@ -79,6 +79,7 @@ export default function App() {
     const res = await fetch(url, {
       method: "POST",
       signal: ctrl.signal,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
         contents: [
@@ -94,6 +95,12 @@ export default function App() {
         generationConfig: { maxOutputTokens: 1200 },
       }),
     });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      setSearchLog((prev) => [...prev, `Error ${res.status}: ${errText.slice(0, 200)}`]);
+      throw new Error(`API error ${res.status}`);
+    }
 
     const reader = res.body.getReader();
     const dec = new TextDecoder();
@@ -144,6 +151,12 @@ export default function App() {
       }
     }
 
+    if (!fullText.trim()) {
+      setTopicStatus((prev) => ({ ...prev, [topic.id]: "error" }));
+      setSearchLog((prev) => [...prev, `Sin contenido devuelto para ${label}`]);
+      return;
+    }
+
     setTopicStatus((prev) => ({ ...prev, [topic.id]: "done" }));
     setSearchLog((prev) => [...prev, `${label} completado`]);
   };
@@ -170,7 +183,8 @@ export default function App() {
       } catch (e) {
         if (e.name !== "AbortError") {
           setTopicStatus((prev) => ({ ...prev, [topicList[i].id]: "error" }));
-          setSearchLog((prev) => [...prev, `Error en ${topicList[i].label}`]);
+          const msg = e.message || "";
+          setSearchLog((prev) => [...prev, `Error en ${topicList[i].label}: ${msg}`]);
         }
       }
       setProgress({ done: i + 1, total: topicList.length });
